@@ -9,6 +9,6 @@ npm-debug.*
 *.orig.*
 web-build/
 
-**/constants/env.ts
+constants/env.ts
 # macOS
 .DS_Store
