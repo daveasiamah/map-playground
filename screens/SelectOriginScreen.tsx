@@ -7,6 +7,8 @@ import MapView, { MapEvent, Marker } from 'react-native-maps';
 import { aubergineMapStyle } from '../constants/MapStyles';
 import { Icon, Button } from 'react-native-elements'
 import { MapNavigationProp } from '../types';
+import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
+import { GoogleApiKey } from '../constants/env';
 
 interface SelectOriginScreenProps {
   navigation: MapNavigationProp<'Origin'>
@@ -16,7 +18,9 @@ export const SelectOriginScreen: React.FC<SelectOriginScreenProps> = ({ navigati
   const [origin, setOrigin] = useState<location>();
   const [isLoading, setIsLoading] = useState(false);
   const mapRef = useRef<MapView>(null);
+  const gref = useRef<GooglePlacesAutocomplete>(null);
 
+  // console.log(gref.current?.state);
   useEffect(() => {
     setOriginLocation();
   }, []);
@@ -95,51 +99,81 @@ export const SelectOriginScreen: React.FC<SelectOriginScreenProps> = ({ navigati
   }, [origin]);
 
   return (
-    <View style={{ flex: 1 }}>
-      {origin &&
-        <MapView
-          style={{ flex: 1 }}
-          initialRegion={origin}
-          customMapStyle={aubergineMapStyle}
-          ref={mapRef}
-          showsUserLocation
-          loadingBackgroundColor='#1d2c4d'
-          // onRegionChangeComplete={region => Alert.alert('Region changed', `latitude is ${region.latitude}, longitude is ${region.longitude}`)}
-          onRegionChange={region => setOrigin(region)}
-        >
-          <Marker coordinate={{
-            latitude: origin.latitude,
-            longitude: origin.longitude
+    <>
+      <View style={{ flex: 1 }}>
+        {origin &&
+          <MapView
+            style={{ flex: 1 }}
+            initialRegion={origin}
+            customMapStyle={aubergineMapStyle}
+            ref={mapRef}
+            showsUserLocation
+            loadingBackgroundColor='#1d2c4d'
+            // onRegionChangeComplete={region => Alert.alert('Region changed', `latitude is ${region.latitude}, longitude is ${region.longitude}`)}
+            onRegionChange={region => setOrigin(region)}
+          >
+            <Marker coordinate={{
+              latitude: origin.latitude,
+              longitude: origin.longitude
+            }}
+              pinColor='palevioletred'
+            />
+          </MapView>
+        }
+        <View
+          style={{
+            width: '100%',
+            flexDirection: 'row',
+            position: 'absolute',
+            bottom: 0,
+            padding: 20,
+            justifyContent: 'space-between',
+            alignItems: 'center'
           }}
-            pinColor='palevioletred'
+        >
+          <Button
+            onPress={() => selectDestination()}
+            title='Next' />
+          <Icon
+            raised
+            name='my-location'
+            type='material-icon'
+            color='#255763'
+            onPress={() => getCurrentLocation().then(loc => {
+              navToCurrentLocation(loc.latitude, loc.longitude);
+            })}
           />
-        </MapView>
-      }
-      <View
-        style={{
-          width: '100%',
-          flexDirection: 'row',
-          position: 'absolute',
-          bottom: 0,
-          padding: 20,
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}
-      >
-        <Button
-          onPress={() => selectDestination()}
-        title = 'Next'/>
-        <Icon
-          raised
-          name='my-location'
-          type='material-icon'
-          color='#255763'
-          onPress={() => getCurrentLocation().then(loc => {
-            navToCurrentLocation(loc.latitude, loc.longitude);
-          })}
-        />
+        </View>
       </View>
-    </View>
+      <GooglePlacesAutocomplete
+        ref={gref}
+        
+        placeholder='Search'
+        fetchDetails
+        onPress={(data, details) => {
+          setOrigin({
+            latitude: details!.geometry.location.lat,
+            longitude: details!.geometry.location.lng,
+            latitudeDelta: origin!.latitudeDelta,
+            longitudeDelta: origin!.longitudeDelta
+          })
+          navToCurrentLocation(details!.geometry.location.lat, details!.geometry.location.lng);
+          console.log(data, details);
+        }}
+        textInputProps={{
+          
+        }}
+        query={{
+          key: GoogleApiKey,
+          language: 'en',
+          components: 'country:gh',
+        }}
+        style={{
+          backgroundColor: 'white',
+
+        }}
+      />
+    </>
   );
 };
 
