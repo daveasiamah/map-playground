@@ -5,9 +5,9 @@ import * as Permissions from 'expo-permissions';
 import * as Location from 'expo-location';
 import MapView, { MapEvent, Marker } from 'react-native-maps';
 import { aubergineMapStyle } from '../constants/MapStyles';
-import { Icon, Button } from 'react-native-elements'
+import { Icon, Button, ListItem } from 'react-native-elements'
 import { MapNavigationProp } from '../types';
-import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
+import { MapSearchInputGroup, placesList as PlacesList } from '../components/map/MapSearchInputGroup';
 import { GoogleApiKey } from '../constants/env';
 
 interface SelectOriginScreenProps {
@@ -16,14 +16,60 @@ interface SelectOriginScreenProps {
 
 export const SelectOriginScreen: React.FC<SelectOriginScreenProps> = ({ navigation }) => {
   const [origin, setOrigin] = useState<location>();
-  const [isLoading, setIsLoading] = useState(false);
+  const [destination, setDestination] = useState<location>();
+  const [places, setPlaces] = useState<{
+    type: 'origin' | 'destination',
+    list: PlacesList
+  }>();
   const mapRef = useRef<MapView>(null);
-  const gref = useRef<GooglePlacesAutocomplete>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // console.log(gref.current?.state);
   useEffect(() => {
     setOriginLocation();
   }, []);
+
+  const getCoordinatesFromGeocode = async (addressUriComponent: string) => {
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${addressUriComponent}&key=${GoogleApiKey}`
+      const res= await fetch(url);
+      const resJson = await res.json();
+      const location = resJson.results[0].geometry.location;
+      return {
+        latitude: location.lat,
+        longitude: location.lng
+      }
+    } catch (err) {
+      console.log(err.message);
+    }
+  }
+
+  const setOriginFromPlace = useCallback(async (uriComponent: string) => {
+    if (!origin) return;
+    const location = await getCoordinatesFromGeocode(uriComponent);
+    setOrigin({
+      latitude: location!.latitude,
+      longitude: location!.longitude,
+      latitudeDelta: origin.latitudeDelta,
+      longitudeDelta: origin.longitudeDelta
+    });
+    navToCurrentLocation(location!.latitude, location!.longitude);
+    setPlaces(undefined);
+  }, [origin]);
+  
+  const setDestinationFromPlace = useCallback(async (uriComponent: string) => {
+    // if (!destination) return;
+    const location = await getCoordinatesFromGeocode(uriComponent);
+    setDestination({
+      latitude: location!.latitude,
+      longitude: location!.longitude,
+      // I use origin's deltas because I have not set a default destination
+      latitudeDelta: origin!.latitudeDelta,
+      longitudeDelta: origin!.longitudeDelta
+    });
+    console.log(location)
+    navToCurrentLocation(location!.latitude, location!.longitude);
+    setPlaces(undefined);
+  }, [destination]);
 
   const verifyPermissions = async () => {
     const result = await Permissions.askAsync(Permissions.LOCATION);
@@ -145,34 +191,35 @@ export const SelectOriginScreen: React.FC<SelectOriginScreenProps> = ({ navigati
           />
         </View>
       </View>
-      <GooglePlacesAutocomplete
-        ref={gref}
-        
-        placeholder='Search'
-        fetchDetails
-        onPress={(data, details) => {
-          setOrigin({
-            latitude: details!.geometry.location.lat,
-            longitude: details!.geometry.location.lng,
-            latitudeDelta: origin!.latitudeDelta,
-            longitudeDelta: origin!.longitudeDelta
-          })
-          navToCurrentLocation(details!.geometry.location.lat, details!.geometry.location.lng);
-          console.log(data, details);
-        }}
-        textInputProps={{
-          
-        }}
-        query={{
-          key: GoogleApiKey,
-          language: 'en',
-          components: 'country:gh',
-        }}
-        style={{
-          backgroundColor: 'white',
-
-        }}
-      />
+      <View style={{
+        position: 'absolute',
+        top: 0,
+        width: '100%'
+      }}>
+        <MapSearchInputGroup
+          onNewDestinationPlacesList={
+            (placesList) => setPlaces(
+              { type: 'destination', list: placesList }
+            )
+          }
+          onNewOriginPlacesList={
+            (placesList) => setPlaces(
+              { type: 'origin', list: placesList }
+            )
+          }
+        />
+        {places && <View>
+          {places.list.descriptions.map((desc, idx) => <ListItem
+            key={desc}
+            title={desc}
+            onPress={() => {
+              if (places.type === 'origin' ) setOriginFromPlace(places.list.uriComponents[idx]);
+              else if (places.type === 'destination') setDestinationFromPlace(places.list.uriComponents[idx]);
+            }}
+            bottomDivider
+          />)}
+        </View>}
+      </View>
     </>
   );
 };
